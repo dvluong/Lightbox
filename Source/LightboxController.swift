@@ -449,7 +449,7 @@ extension LightboxController: FooterViewDelegate {
     public func footerView(_ footerView: FooterView, didExpand expanded: Bool) {
         
         if expanded {
-            footerViewHeight += footerView.infoLabel.frame.height
+            footerViewHeight = 100 + footerView.infoLabel.frame.height
         } else {
             footerViewHeight = 100
         }
