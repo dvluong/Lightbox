@@ -1,152 +1,125 @@
 import UIKit
 
-public protocol InfoLabelDelegate: class {
-
-  func infoLabel(_ infoLabel: InfoLabel, didExpand expanded: Bool)
+public protocol FooterViewDelegate: class {
+    
+    func footerView(_ footerView: FooterView, didExpand expanded: Bool)
 }
 
-open class InfoLabel: UILabel {
-
-  lazy var tapGestureRecognizer: UITapGestureRecognizer = { [unowned self] in
-    let gesture = UITapGestureRecognizer()
-    gesture.addTarget(self, action: #selector(labelDidTap(_:)))
-
-    return gesture
-  }()
-
-  open var numberOfVisibleLines = 2
-
-  var ellipsis: String {
-    return "... \(LightboxConfig.InfoLabel.ellipsisText)"
-  }
-
-  open weak var delegate: InfoLabelDelegate?
-  fileprivate var shortText = ""
-
-  var fullText: String {
-    didSet {
-      shortText = truncatedText
-      updateText(fullText)
-      configureLayout()
+open class FooterView: UIView {
+    
+    open fileprivate(set) lazy var infoLabel: InfoLabel = { [unowned self] in
+        let label = InfoLabel(text: "")
+        label.isHidden = !LightboxConfig.InfoLabel.enabled
+        
+        label.textColor = LightboxConfig.InfoLabel.textColor
+        label.isUserInteractionEnabled = true
+        label.delegate = self
+        
+        return label
+        }()
+    
+    open fileprivate(set) lazy var pageLabel: UILabel = { [unowned self] in
+        let label = UILabel(frame: CGRect.zero)
+        label.isHidden = !LightboxConfig.PageIndicator.enabled
+        label.numberOfLines = 1
+        
+        return label
+        }()
+    
+    open fileprivate(set) lazy var separatorView: UIView = { [unowned self] in
+        let view = UILabel(frame: CGRect.zero)
+        view.isHidden = !LightboxConfig.PageIndicator.enabled
+        view.backgroundColor = LightboxConfig.PageIndicator.separatorColor
+        
+        return view
+        }()
+    
+    let gradientColors = [UIColor(hex: "040404").alpha(0.1), UIColor(hex: "040404")]
+    open weak var delegate: FooterViewDelegate?
+    
+    // MARK: - Initializers
+    
+    public init() {
+        super.init(frame: CGRect.zero)
+        
+        backgroundColor = UIColor.clear
+        _ = addGradientLayer(gradientColors)
+        
+        [pageLabel, infoLabel, separatorView].forEach { addSubview($0) }
     }
-  }
-
-  var expandable: Bool {
-    return shortText != fullText
-  }
-
-  fileprivate(set) var expanded = false {
-    didSet {
-      delegate?.infoLabel(self, didExpand: expanded)
+    
+    public required init?(coder aDecoder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
-  }
-
-  var truncatedText: String {
-    var truncatedText = fullText
-
-    guard numberOfLines(fullText) > numberOfVisibleLines else {
-      return truncatedText
+    
+    // MARK: - Helpers
+    
+    func expand(_ expand: Bool) {
+        expand ? infoLabel.expand() : infoLabel.collapse()
     }
-
-    // Perform quick "rough cut"
-    while numberOfLines(truncatedText) > numberOfVisibleLines * 2 {
-        truncatedText = String(truncatedText.prefix(truncatedText.count / 2))
+    
+    func updatePage(_ page: Int, _ numberOfPages: Int) {
+        let text = "\(page)/\(numberOfPages)"
+        
+        pageLabel.attributedText = NSAttributedString(string: text,
+                                                      attributes: LightboxConfig.PageIndicator.textAttributes)
+        pageLabel.sizeToFit()
     }
-
-    // Capture the endIndex of truncatedText before appending ellipsis
-    var truncatedTextCursor = truncatedText.endIndex
-
-    truncatedText += ellipsis
-
-    // Remove characters ahead of ellipsis until the text is the right number of lines
-    while numberOfLines(truncatedText) > numberOfVisibleLines {
-      // To avoid "Cannot decrement before startIndex"
-      guard truncatedTextCursor > truncatedText.startIndex else {
-        break
-      }
-
-      truncatedTextCursor = truncatedText.index(before: truncatedTextCursor)
-      truncatedText.remove(at: truncatedTextCursor)
+    
+    func updateText(_ text: String) {
+        infoLabel.fullText = text
+        
+        if text.isEmpty {
+            _ = removeGradientLayer()
+        } else if !infoLabel.expanded {
+            _ = addGradientLayer(gradientColors)
+        }
     }
-
-    return truncatedText
-  }
-
-  // MARK: - Initialization
-
-  public init(text: String, expanded: Bool = false) {
-    self.fullText = text
-    super.init(frame: CGRect.zero)
-
-    numberOfLines = 0
-    updateText(text)
-    self.expanded = expanded
-
-    addGestureRecognizer(tapGestureRecognizer)
-  }
-
-  public required init?(coder aDecoder: NSCoder) {
-    fatalError("init(coder:) has not been implemented")
-  }
-
-  // MARK: - Actions
-
-  @objc func labelDidTap(_ tapGestureRecognizer: UITapGestureRecognizer) {
-    shortText = truncatedText
-    expanded ? collapse() : expand()
-  }
-
-  func expand() {
-    frame.size.height = heightForString(fullText)
-    updateText(fullText)
-
-    expanded = expandable
-  }
-
-  func collapse() {
-    frame.size.height = heightForString(shortText)
-    updateText(shortText)
-
-    expanded = false
-  }
-
-  fileprivate func updateText(_ string: String) {
-    let textAttributes = LightboxConfig.InfoLabel.textAttributes
-    let attributedString = NSMutableAttributedString(string: string, attributes: textAttributes)
-
-    if let range = string.range(of: ellipsis) {
-        let ellipsisColor = LightboxConfig.InfoLabel.ellipsisColor
-        let ellipsisRange = NSRange(range, in: string)
-        attributedString.addAttribute(.foregroundColor, value: ellipsisColor, range: ellipsisRange)
+    
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        
+        do {
+            let bottomPadding: CGFloat
+            if #available(iOS 11, *) {
+                bottomPadding = safeAreaInsets.bottom
+            } else {
+                bottomPadding = 0
+            }
+            
+            pageLabel.frame.origin = CGPoint(
+                x: (frame.width - pageLabel.frame.width) / 2,
+                y: frame.height - pageLabel.frame.height - 2 - bottomPadding
+            )
+        }
+        
+        separatorView.frame = CGRect(
+            x: 0,
+            y: pageLabel.frame.minY - 2.5,
+            width: frame.width,
+            height: 0.5
+        )
+        
+        infoLabel.frame.origin.y = separatorView.frame.minY - infoLabel.frame.height - 15
+        
+        resizeGradientLayer()
     }
-
-    attributedText = attributedString
-  }
-
-  // MARK: - Helper methods
-
-  fileprivate func heightForString(_ string: String) -> CGFloat {
-    return string.boundingRect(
-      with: CGSize(width: bounds.size.width, height: CGFloat.greatestFiniteMagnitude),
-      options: [.usesLineFragmentOrigin, .usesFontLeading],
-      attributes: [NSAttributedStringKey.font: font],
-      context: nil).height
-  }
-
-  fileprivate func numberOfLines(_ string: String) -> Int {
-    let lineHeight = "A".size(withAttributes: [NSAttributedStringKey.font: font]).height
-    let totalHeight = heightForString(string)
-
-    return Int(totalHeight / lineHeight)
-  }
 }
 
 // MARK: - LayoutConfigurable
 
-extension InfoLabel: LayoutConfigurable {
+extension FooterView: LayoutConfigurable {
+    
+    @objc public func configureLayout() {
+        infoLabel.frame = CGRect(x: 17, y: 0, width: frame.width - 17 * 2, height: 35)
+        infoLabel.configureLayout()
+    }
+}
 
-  @objc public func configureLayout() {
-    shortText = truncatedText
-    expanded ? expand() : collapse()
-  }
+extension FooterView: InfoLabelDelegate {
+    
+    public func infoLabel(_ infoLabel: InfoLabel, didExpand expanded: Bool) {
+        _ = (expanded || infoLabel.fullText.isEmpty) ? removeGradientLayer() : addGradientLayer(gradientColors)
+        delegate?.footerView(self, didExpand: expanded)
+    }
 }
