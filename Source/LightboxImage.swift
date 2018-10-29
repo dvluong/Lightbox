@@ -1,5 +1,4 @@
 import UIKit
-import Imaginary
 
 open class LightboxImage {
 
@@ -10,7 +9,7 @@ open class LightboxImage {
   open var text: String
 
   // MARK: - Initialization
-  
+
   internal init(text: String = "") {
     self.text = text
   }
@@ -26,7 +25,7 @@ open class LightboxImage {
     self.text = text
     self.videoURL = videoURL
   }
-  
+
   public init(imageClosure: @escaping () -> UIImage, text: String = "", videoURL: URL? = nil) {
     self.imageClosure = imageClosure
     self.text = text
